@@ -1,5 +1,4 @@
 import streamlit as st
-import ffmpeg
 import subprocess
 import whisper
 import tempfile
@@ -7,28 +6,40 @@ import os
 from io import BytesIO
 from docx import Document
 from reportlab.pdfgen import canvas
+from reportlab.platypus import SimpleDocTemplate, Paragraph
+from reportlab.lib.styles import getSampleStyleSheet
+from datetime import timedelta
+
 
 st.title("🎙️Transcripto")
 st.subheader("Upload a video and get the transcription")
 
 # Helper: Convert video to audio
 def video_to_audio(video_path, audio_path="output.wav"):
-    stream = ffmpeg.input(video_path)
-    stream = ffmpeg.output(stream, audio_path)
-    ffmpeg.run(stream, overwrite_output=True)
+    command = ["ffmpeg", "-y", "-i", video_path, audio_path]
+    subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     return audio_path
 
 # Cache Whisper model
 @st.cache_resource
-def get_audio_model():
-    model = whisper.load_model("base")  # tiny/base/small/medium/large
-    return model
+def get_audio_model(size):
+    return whisper.load_model(size)
+
+model_size = st.selectbox("Model size", ["tiny", "base", "small", "medium", "large"], index=1)
 
 # Transcribe audio
 def transcribe_audio(audio_path):
-    model = get_audio_model()
-    result = model.transcribe(audio_path)
-    return result
+    model = get_audio_model(model_size)
+    return model.transcribe(audio_path, fp16=False)
+
+def format_timestamp(seconds):
+    td = timedelta(seconds=seconds)
+    total_seconds = td.total_seconds()
+    hours, remainder = divmod(total_seconds, 3600)
+    minutes, remainder = divmod(remainder, 60)
+    secs, ms = divmod(remainder, 1)
+    ms = int(ms * 1000)
+    return f"{int(hours):02d}:{int(minutes):02d}:{int(secs):02d}.{ms:03d}"
 
 # File generator for download
 def download_file(transcription, base_filename, format_choice):
@@ -46,12 +57,10 @@ def download_file(transcription, base_filename, format_choice):
 
     elif format_choice == "PDF":
         buffer = BytesIO()
-        c = canvas.Canvas(buffer)
-        textobject = c.beginText(40, 800)
-        for line in transcription.split("\n"):
-            textobject.textLine(line)
-        c.drawText(textobject)
-        c.save()
+        doc = SimpleDocTemplate(buffer)
+        styles = getSampleStyleSheet()
+        content = [Paragraph(line, styles["Normal"]) for line in transcription.split("\n")]
+        doc.build(content)
         buffer.seek(0)
         return buffer, f"{base_filename}_transcription.pdf", "application/pdf"
 
@@ -74,16 +83,19 @@ if uploaded_video:
         result = transcribe_audio(audio_path)
 
     # Display transcription
-    transcription = "\n".join([seg["text"] for seg in result["segments"]])
+    transcription_lines = []
     for seg in result["segments"]:
-        start = round(seg["start"], 2)
-        end = round(seg["end"], 2)
-        text = seg["text"]
+        start = format_timestamp(seg["start"])
+        end = format_timestamp(seg["end"])
+        text = seg["text"].strip()
+        transcription_lines.append(f"[{start} → {end}] {text}")
         st.markdown(f"**[{start} → {end}]** {text}")
+
+    transcription = "\n".join(transcription_lines)
 
     # Format choice + download button
     format_choice = st.radio("Choose download format:", ["TXT", "DOCX", "PDF"])
-    base_filename = os.path.splitext(os.path.basename(video_path))[0]
+    base_filename = os.path.splitext(uploaded_video.name)[0]
 
     file_data, file_name, mime = download_file(transcription, base_filename, format_choice)
     st.download_button(
