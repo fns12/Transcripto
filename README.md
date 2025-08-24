@@ -3,10 +3,25 @@
 ![Python](https://img.shields.io/badge/python-3.9-blue)
 ![Streamlit](https://img.shields.io/badge/Streamlit-cloud-red)
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
+
 A simple Streamlit app that transcribes videos into text using OpenAI’s **Whisper** model.
 
 🌐 **[Live Demo on Streamlit Cloud](https://transcripto12.streamlit.app/)**
+
+
+---
+
+## 🎬 Demo  
+
+
+
+
 ![Demo](assets/demo.gif)
+
+
+
+
+
 ---
 
 ## ✨ Features
