@@ -1,4 +1,5 @@
 import streamlit as st
+import ffmpeg
 import subprocess
 import whisper
 import tempfile
@@ -16,8 +17,9 @@ st.subheader("Upload a video and get the transcription")
 
 # Helper: Convert video to audio
 def video_to_audio(video_path, audio_path="output.wav"):
-    command = ["ffmpeg", "-y", "-i", video_path, audio_path]
-    subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    stream = ffmpeg.input(video_path)
+    stream = ffmpeg.output(stream, audio_path)
+    ffmpeg.run(stream, overwrite_output=True)
     return audio_path
 
 # Cache Whisper model
